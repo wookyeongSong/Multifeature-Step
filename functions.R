@@ -1,16 +1,43 @@
+##########################################################################################################
+##### Multi-feature Clustering of Step Data using Multivariate Functional Principal Component Analysis
+##### Built-in Functions. Automatically loaded by "simulation_code.R" 
+##### Date : 2020/11/18
+##### Author : Wookyeong Song
+###########################################################################################################
+###########################################################################################################
+library(fdapace)
+library(fda)
+library(cluster)
+library(factoextra)
+library(fields)
+library(lubridate)
+library(doBy)
+library(plyr)
+library(combinat)
+library(NbClust)
+
+## load step data
+load("C:\\Users\\user\\Desktop\\WK\\class\\intern\\hsoh(step)\\step_79.RData")
+
+step = full_step2[-1,]
+
+## Standardized Cumulative Sum Function
+## input : step - p x N matrix (Ex. p = 1440, N= 21394)
 convert_amount <- function(step) {
-  data_amount<-matrix(nrow=nrow(step), ncol=ncol(step))
-  for(i in 1:ncol(step)){
-    data_amount[,i]= cumsum(step[,i])
-  }
-  return(data_amount/mean(data_amount[nrow(step),]))
+  
+  data_amount = apply(step,2,cumsum)
+  
+  std_data_amount = data_amount/mean(data_amount[nrow(step),])
+  
+  std_data_amount
 }
 
+## Standardized Ordered Quantile Slope Function
+## input : step - p x N matrix (Ex. p = 1440, N= 21394)
+##         K - number of quantile Q1 
 convert_intensity <-function(step,K) {
-  K=K
   
   intmatrix <- matrix(0,nrow=K+1,ncol=ncol(step))
-  
   for(i in 1:ncol(step)) {
     total_act=sum(step[,i])
     s_t=cumsum(step[,i])
@@ -19,7 +46,6 @@ convert_intensity <-function(step,K) {
     }
     intmatrix[(K+1),i]<- nrow(step)
   }
-  
   
   data_intensity = matrix(NA,nrow=nrow(step), ncol=ncol(step))
   num = as.integer(nrow(step)/K)
@@ -31,36 +57,19 @@ convert_intensity <-function(step,K) {
     }
   }
   
-  sort_data_intensity = matrix(NA,nrow=nrow(step), ncol=ncol(step))
-  for(i in 1:ncol(data_intensity)) {
-    sort_data_intensity[,i]<-sort(data_intensity[,i])
-  }
+  data_intensity = apply(data_intensity,2,sort)
   
-  return(sort_data_intensity/mean(sort_data_intensity[nrow(step),]))
+  std_data_intensity = data_intensity/mean(data_intensity[nrow(step),])
+  
+  std_data_intensity
 }
 
-
+## Standardized Mean Score Function
+## input : step - p x N matrix (Ex. p = 1440, N= 21394)
+##         K - number of quantile Q2 
 convert_pattern <- function(step,K) {
-  new_patmatrix <- matrix(0,nrow= nrow(step),ncol=ncol(step))
   
-  K=K
   pj=c(0:K)/K
-  
-  
-  # for(i in 1:ncol(step)) {
-  # s_pj= quantile(rank(step[which(step[,i]!=0),i]) , probs=pj) # quantile(c(1:nrow(step)) , probs=pj)
-  # index=which(step[,i]!=0)
-  # for(t in 1: length(index)){
-  
-  # new_patmatrix[index[t],i]=min(which(rank(step[which(step[,i]!=0),i] )[t] <= s_pj))-1
-  
-  # }
-  
-  # }
-  
-  
-  
-  
   
   patmatrix <- matrix(nrow=(K+1),ncol=ncol(step))
   for(i in 1:ncol(step)) {
@@ -76,8 +85,6 @@ convert_pattern <- function(step,K) {
     patmatrix[(K+1),i]<- nrow(step)
   }
   
-  
-  
   ### data_pattern_score
   data_pattern_score=matrix(nrow=nrow(step),ncol=ncol(step))
   for(i in 1:ncol(step)) {
@@ -85,7 +92,6 @@ convert_pattern <- function(step,K) {
       data_pattern_score[which(patmatrix[(j+1),i]>=rank(step[,i])  &  rank(step[,i])>patmatrix[j,i]),i]<-(j-1)
     }
   }
-  
   
   ### data_pattern
   data_pattern=matrix(nrow=nrow(step),ncol=ncol(step))
@@ -95,17 +101,81 @@ convert_pattern <- function(step,K) {
     }
   }
   
-  sort_data_pattern=matrix(nrow=nrow(step),ncol=ncol(step))
-  for(i in 1:ncol(step)) {
-    sort_data_pattern[,i] = sort(data_pattern[,i])
-  }
+  sort_data_pattern=apply(data_pattern,2,sort)
   
-  return(data_pattern/mean(sort_data_pattern[nrow(step),]))
+  std_data_pattern= data_pattern/mean(sort_data_pattern[nrow(step),])
+  
+  std_data_pattern
 }
 
-convert_nonorder_intensity <-function(step,K) {
-  K=K
+## Construct Multi-Feature Step Data
+## input : step - p x N matrix (Ex. p = 1440, N= 21394)
+##         Q1 - number of quantiles for the ordered slope function
+##         Q2 - number of quantiles for the mean score function
+MultiFeat_data <- function(step,Q1,Q2) {
   
+  data_amount = convert_amount(step)
+  data_intensity = convert_intensity(step,Q1)
+  data_pattern = convert_pattern(step,Q2)
+  
+  MultiFeat_data_array = array(data=NA,dim=c(nrow(step),ncol(step),3))
+  
+  MultiFeat_data_array[,,1]<-data_amount
+  MultiFeat_data_array[,,2]<-data_intensity
+  MultiFeat_data_array[,,3]<-data_pattern
+  
+  MultiFeat_data_array
+}
+
+## Obtain MFPCA score
+## input : MultiFeat_data_array - Multi-Feature step data from MultiFeat_data function
+##         threshold - percentages of total variance from MFPC
+MultiFeat_MFPCA = function(MultiFeat_data_array,threshold) {
+  
+  xdim = dim(MultiFeat_data_array[,,1])[1]
+  ## Cubic B-spline basis
+  fdabasis = create.bspline.basis(rangeval=c(0,xdim),norder=4,breaks = seq(0,xdim,by=6))
+  fdatime = seq(1, xdim, by=1)
+  fdafd = smooth.basis(fdatime, MultiFeat_data_array, fdabasis)$fd
+  
+  stepPca = pca.fd(fdafd,nharm=10)
+  
+  cum_varprop <- vector()
+  for(q in 1:10){
+    cum_varprop[q]=sum(stepPca$varprop[1:q])
+  }
+  
+  cum_varprop
+  num_PCscore=which(cum_varprop>threshold)[1]
+  
+  fun_PCscore<-stepPca$scores[,1:num_PCscore,1]+stepPca$scores[,1:num_PCscore ,2]+stepPca$scores[, 1:num_PCscore,3]
+  
+  fun_PCscore
+}
+
+## Finding best match cluster when obtaining CCR
+## input : x - true label
+##         y - our clustering result
+best_match_factor=function(x,y){
+  x=factor(x)
+  A=NA
+  for(k in 1:length(permn(length(table(x))))){
+    new_b= as.factor(y)
+    newy=mapvalues(new_b, from = levels(new_b), to =  as.character( permn(length(table(x)))[k][[1]] ) )
+    A=c(A,  length(which(newy==x) ) )
+  }
+  A=A[-1]
+  newy=mapvalues(new_b, from = levels(new_b), to =  as.character( permn(length(table(x)))[which.max(A)][[1]] ) )
+  return(as.numeric(as.character(newy)) )
+}
+
+
+show_result = function(ccr_km,)
+
+
+## Functions below are used to draw figures
+convert_nonorder_intensity <-function(step,K) {
+
   intmatrix <- matrix(0,nrow=K+1,ncol=ncol(step))
   
   for(i in 1:ncol(step)) {
@@ -117,7 +187,6 @@ convert_nonorder_intensity <-function(step,K) {
     intmatrix[(K+1),i]<- nrow(step)
   }
   
-  
   data_intensity = matrix(NA,nrow=nrow(step), ncol=ncol(step))
   num = as.integer(nrow(step)/K)
   for(i in 1:ncol(data_intensity)) {
@@ -128,7 +197,7 @@ convert_nonorder_intensity <-function(step,K) {
     }
   }
   
-  return(data_intensity)
+  data_intensity
 }
 
 convert_nonstandard_intensity <-function(step,K) {
@@ -156,36 +225,13 @@ convert_nonstandard_intensity <-function(step,K) {
     }
   }
   
-  sort_data_intensity = matrix(NA,nrow=nrow(step), ncol=ncol(step))
-  for(i in 1:ncol(data_intensity)) {
-    sort_data_intensity[,i]<-sort(data_intensity[,i])
-  }
+  sort_data_intensity = apply(data_intensity,2,sort)
   
-  return(sort_data_intensity)
+  sort_data_intensity
 }
 
 
 convert_nonstandard_pattern <- function(step,K) {
-  new_patmatrix <- matrix(0,nrow= nrow(step),ncol=ncol(step))
-  
-  K=K
-  pj=c(0:K)/K
-  
-  
-  # for(i in 1:ncol(step)) {
-  # s_pj= quantile(rank(step[which(step[,i]!=0),i]) , probs=pj) # quantile(c(1:nrow(step)) , probs=pj)
-  # index=which(step[,i]!=0)
-  # for(t in 1: length(index)){
-  
-  # new_patmatrix[index[t],i]=min(which(rank(step[which(step[,i]!=0),i] )[t] <= s_pj))-1
-  
-  # }
-  
-  # }
-  
-  
-  
-  
   
   patmatrix <- matrix(nrow=(K+1),ncol=ncol(step))
   for(i in 1:ncol(step)) {
@@ -201,8 +247,6 @@ convert_nonstandard_pattern <- function(step,K) {
     patmatrix[(K+1),i]<- nrow(step)
   }
   
-  
-  
   ### data_pattern_score
   data_pattern_score=matrix(nrow=nrow(step),ncol=ncol(step))
   for(i in 1:ncol(step)) {
@@ -210,7 +254,6 @@ convert_nonstandard_pattern <- function(step,K) {
       data_pattern_score[which(patmatrix[(j+1),i]>=rank(step[,i])  &  rank(step[,i])>patmatrix[j,i]),i]<-(j-1)
     }
   }
-  
   
   ### data_pattern
   data_pattern=matrix(nrow=nrow(step),ncol=ncol(step))
@@ -220,20 +263,6 @@ convert_nonstandard_pattern <- function(step,K) {
     }
   }
 
-  
-  return(data_pattern)
+  data_pattern
 }
 
-
-best_match_factor=function(x,y){
-  x=factor(x)
-  A=NA
-  for(k in 1:length(permn(length(table(x)))) ){
-    new_b= as.factor(y)
-    newy=mapvalues(new_b, from = levels(new_b), to =  as.character( permn(length(table(x)))[k][[1]] ) )
-    A=c(A,  length(which(newy==x) ) )
-  }
-  A=A[-1]
-  newy=mapvalues(new_b, from = levels(new_b), to =  as.character( permn(length(table(x)))[which.max(A)][[1]] ) )
-  return(as.numeric(as.character(newy)) )
-}
