@@ -653,5 +653,7 @@ for (k in 1:100) {
   
 }
 
-
+doppler_sim_pattern = cbind(ccr_kmeans_dopshif,rand_kmeans_dopshif,ccr_pam_dopshif,rand_pam_dopshif,ccr_funfem_dopshif,rand_funfem_dopshif,ccr_funhddc_dopshif,rand_funhddc_dopshif)
+apply(step_sim_dopshif,2,mean)
+apply(step_sim_dopshif,2,sd)
 
