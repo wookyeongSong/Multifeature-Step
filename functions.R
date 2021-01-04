@@ -52,7 +52,7 @@ convert_intensity <-function(step,K) {
   for(i in 1:ncol(data_intensity)) {
     for(j in 1:K) {
       if( intmatrix[j+1,i]!=  intmatrix[j,i] ){
-        data_intensity[c( (intmatrix[j ,i]+1 ):  intmatrix[j+1 ,i])  ,i]<- sum(step[,i])/(K*(intmatrix[(j+1),i]-intmatrix[j,i])  )
+        data_intensity[c( (intmatrix[j ,i]+1 ):  intmatrix[j+1 ,i])  ,i]<-1/(K*(intmatrix[(j+1),i]-intmatrix[j,i])  )
       }
     }
   }
@@ -170,9 +170,6 @@ best_match_factor=function(x,y){
 }
 
 
-show_result = function(ccr_km,)
-
-
 ## Functions below are used to draw figures
 convert_nonorder_intensity <-function(step,K) {
 
@@ -192,7 +189,7 @@ convert_nonorder_intensity <-function(step,K) {
   for(i in 1:ncol(data_intensity)) {
     for(j in 1:K) {
       if( intmatrix[j+1,i]!=  intmatrix[j,i] ){
-        data_intensity[c( (intmatrix[j ,i]+1 ):  intmatrix[j+1 ,i])  ,i]<- sum(step[,i])/(K*(intmatrix[(j+1),i]-intmatrix[j,i])  )
+        data_intensity[c( (intmatrix[j ,i]+1 ):  intmatrix[j+1 ,i])  ,i]<- 1/(K*(intmatrix[(j+1),i]-intmatrix[j,i])  )
       }
     }
   }
@@ -220,7 +217,7 @@ convert_nonstandard_intensity <-function(step,K) {
   for(i in 1:ncol(data_intensity)) {
     for(j in 1:K) {
       if( intmatrix[j+1,i]!=  intmatrix[j,i] ){
-        data_intensity[c( (intmatrix[j ,i]+1 ):  intmatrix[j+1 ,i])  ,i]<- sum(step[,i])/(K*(intmatrix[(j+1),i]-intmatrix[j,i])  )
+        data_intensity[c( (intmatrix[j ,i]+1 ):  intmatrix[j+1 ,i])  ,i]<- 1/(K*(intmatrix[(j+1),i]-intmatrix[j,i])  )
       }
     }
   }
@@ -263,6 +260,18 @@ convert_nonstandard_pattern <- function(step,K) {
     }
   }
 
+  data_pattern
+}
+
+## For revision reply
+convert_fixed_histogram <- function(step,K) {
+  data_pattern=matrix(nrow=nrow(step),ncol=ncol(step))
+  for(i in 1:ncol(step)) {
+    for(j in 1:K) {
+      data_pattern[((nrow(step)/K)*j-(nrow(step)/K-1)):((nrow(step)/K)*j),i]<-mean(step[((nrow(step)/K)*j-(nrow(step)/K-1)):((nrow(step)/K)*j),i])
+    }
+  }
+  
   data_pattern
 }
 
