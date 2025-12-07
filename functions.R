@@ -17,7 +17,7 @@ library(combinat)
 library(NbClust)
 
 ## load step data
-load("C:\\Users\\user\\Desktop\\WK\\class\\intern\\hsoh(step)\\step_79.RData")
+load("~\\step_79.RData")
 
 step = full_step2[-1,]
 
